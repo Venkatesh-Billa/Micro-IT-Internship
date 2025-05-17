@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Premium Weather App</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Poppins', sans-serif;
+      margin: 0;
+      min-height: 100vh;
+      overflow-x: hidden;
+      background: linear-gradient(to right, #83a4d4, #b6fbff);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      position: relative;
+    }
+
+    /* Background Animations */
+    .background {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .cloud {
+      position: absolute;
+      background: url('https://pngimg.com/uploads/cloud/cloud_PNG27.png') no-repeat;
+      background-size: contain;
+      width: 200px;
+      height: 120px;
+      animation: moveClouds 60s linear infinite;
+    }
+
+    @keyframes moveClouds {
+      0% { left: -250px; top: 50px;}
+      100% { left: 100%; top: 50px;}
+    }
+
+    /* Neumorphism Container */
+    .weather-container {
+      z-index: 1;
+      background: #e0e0e0;
+      box-shadow: 10px 10px 20px #bebebe, -10px -10px 20px #ffffff;
+      padding: 30px;
+      border-radius: 25px;
+      text-align: center;
+      width: 100%;
+      max-width: 400px;
+      animation: fadeIn 1s ease;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 2rem;
+    }
+
+    input, button {
+      width: 100%;
+      padding: 12px;
+      margin: 8px 0;
+      font-size: 1rem;
+      border-radius: 12px;
+      border: none;
+      outline: none;
+      box-shadow: inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff;
+    }
+
+    button {
+      background-color: #007bff;
+      color: white;
+      cursor: pointer;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      transform: scale(1.05);
+      background-color: #0056b3;
+    }
+
+    #weatherResult {
+      margin-top: 20px;
+    }
+
+    canvas {
+      margin-top: 20px;
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    .spinner {
+      margin: 20px auto;
+      width: 40px;
+      height: 40px;
+      border: 5px solid #ccc;
+      border-top-color: #007BFF;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {transform: rotate(0deg);}
+      100% {transform: rotate(360deg);}
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px);}
+      to { opacity: 1; transform: translateY(0);}
+    }
+
+    img {
+      margin-top: 10px;
+      max-width: 100%;
+      height: auto;
+    }
+
+    @media (max-width: 600px) {
+      .weather-container {
+        padding: 20px;
+      }
+
+      h1 {
+        font-size: 1.5rem;
+      }
+
+      input, button {
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="background"></div>
+
+  <div class="weather-container">
+    <h1>Weather App</h1>
+    <input type="text" id="cityInput" placeholder="Enter city name"/>
+    <button onclick="getWeather()">Get Weather</button>
+    <button id="voiceButton">🎤 Speak</button>
+    <div id="weatherResult"></div>
+    <canvas id="tempChart"></canvas>
+  </div>
+
+  <script>
+    const apiKey = '57faf77a25e85ec45212e5f14d4e49f0';
+    const weatherResult = document.getElementById('weatherResult');
+    const tempChartCanvas = document.getElementById('tempChart').getContext('2d');
+    let tempChart;
+    const background = document.querySelector('.background');
+
+    document.getElementById('voiceButton').addEventListener('click', startVoiceRecognition);
+
+    function getWeather() {
+      const city = document.getElementById('cityInput').value.trim();
+      if (!city) {
+        alert('Please enter a city name');
+        return;
+      }
+      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
+      fetchWeather(url);
+    }
+
+    function fetchWeather(url) {
+      weatherResult.innerHTML = '<div class="spinner"></div>';
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.cod === 200) {
+            showWeather(data);
+            getForecast(data.coord.lat, data.coord.lon);
+            animateBackground(data.weather[0].main);
+          } else {
+            weatherResult.innerHTML = `<p>City not found. Try again.</p>`;
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          weatherResult.innerHTML = `<p>Something went wrong. Try again later.</p>`;
+        });
+    }
+
+    function showWeather(data) {
+      const iconCode = data.weather[0].icon;
+      const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
+      const timezoneOffset = data.timezone;
+      const localTime = new Date(new Date().getTime() + timezoneOffset * 1000).toUTCString();
+
+      weatherResult.innerHTML = `
+        <h2>${data.name}</h2>
+        <img src="${iconUrl}" alt="Weather Icon">
+        <p><strong>${data.weather[0].description}</strong></p>
+        <p>Temperature: ${data.main.temp}°C</p>
+        <p>Feels Like: ${data.main.feels_like}°C</p>
+        <p>Humidity: ${data.main.humidity}%</p>
+        <p>Wind Speed: ${data.wind.speed} m/s</p>
+        <p>Local Time: ${localTime}</p>
+      `;
+    }
+
+    function getForecast(lat, lon) {
+      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          const temps = data.list.slice(0, 8).map(item => item.main.temp);
+          const times = data.list.slice(0, 8).map(item => item.dt_txt.split(' ')[1]);
+
+          if (tempChart) tempChart.destroy();
+
+          tempChart = new Chart(tempChartCanvas, {
+            type: 'line',
+            data: {
+              labels: times,
+              datasets: [{
+                label: 'Temperature °C',
+                data: temps,
+                backgroundColor: 'rgba(0,123,255,0.2)',
+                borderColor: '#007BFF',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              scales: {
+                y: { beginAtZero: false }
+              }
+            }
+          });
+        })
+        .catch(error => console.error('Forecast error:', error));
+    }
+
+    function animateBackground(condition) {
+      background.innerHTML = '';
+
+      if (condition.toLowerCase().includes('cloud')) {
+        for (let i = 0; i < 3; i++) {
+          const cloud = document.createElement('div');
+          cloud.className = 'cloud';
+          cloud.style.top = `${Math.random() * 80 + 10}px`;
+          background.appendChild(cloud);
+        }
+      } else if (condition.toLowerCase().includes('rain')) {
+        background.style.background = "linear-gradient(to right, #667db6, #0082c8)";
+      } else if (condition.toLowerCase().includes('snow')) {
+        background.style.background = "linear-gradient(to right, #e6dada, #274046)";
+      } else {
+        background.style.background = "linear-gradient(to right, #83a4d4, #b6fbff)";
+      }
+    }
+
+    function startVoiceRecognition() {
+      if (!('webkitSpeechRecognition' in window)) {
+        alert('Voice recognition not supported');
+        return;
+      }
+      const recognition = new webkitSpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.start();
+
+      recognition.onresult = function(event) {
+        const city = event.results[0][0].transcript;
+        document.getElementById('cityInput').value = city;
+        getWeather();
+      };
+    }
+  </script>
+</body>
+</html>
