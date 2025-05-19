@@ -2,69 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Premium Weather App</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Weather App with Login</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     * {
       box-sizing: border-box;
     }
-    
     body {
       font-family: 'Poppins', sans-serif;
       margin: 0;
       min-height: 100vh;
       overflow-x: hidden;
       background: linear-gradient(to right, #83a4d4, #b6fbff);
+      color: #000;
       display: flex;
       justify-content: center;
       align-items: center;
       padding: 20px;
-      position: relative;
+  
     }
-
-    /* Background Animations */
-    .background {
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      z-index: 0;
-      pointer-events: none;
-    }
-
-    .cloud {
-      position: absolute;
-      background: url('https://pngimg.com/uploads/cloud/cloud_PNG27.png') no-repeat;
-      background-size: contain;
-      width: 200px;
-      height: 120px;
-      animation: moveClouds 60s linear infinite;
-    }
-
-    @keyframes moveClouds {
-      0% { left: -250px; top: 50px;}
-      100% { left: 100%; top: 50px;}
-    }
-
-    /* Neumorphism Container */
-    .weather-container {
-      z-index: 1;
+    .container {
       background: #e0e0e0;
       box-shadow: 10px 10px 20px #bebebe, -10px -10px 20px #ffffff;
       padding: 30px;
       border-radius: 25px;
-      text-align: center;
       width: 100%;
       max-width: 400px;
-      animation: fadeIn 1s ease;
+      text-align: center;
     }
-
-    h1 {
-      margin-bottom: 10px;
-      font-size: 2rem;
-    }
-
     input, button {
       width: 100%;
       padding: 12px;
@@ -75,29 +41,27 @@
       outline: none;
       box-shadow: inset 5px 5px 10px #bebebe, inset -5px -5px 10px #ffffff;
     }
-
     button {
       background-color: #007bff;
       color: white;
       cursor: pointer;
       transition: all 0.3s ease;
     }
-
     button:hover {
       transform: scale(1.05);
       background-color: #0056b3;
     }
-
+    h1, h2 {
+      margin-bottom: 10px;
+    }
     #weatherResult {
       margin-top: 20px;
     }
-
     canvas {
       margin-top: 20px;
       width: 100% !important;
       height: auto !important;
     }
-
     .spinner {
       margin: 20px auto;
       width: 40px;
@@ -107,169 +71,255 @@
       border-radius: 50%;
       animation: spin 1s linear infinite;
     }
-
     @keyframes spin {
       0% {transform: rotate(0deg);}
       100% {transform: rotate(360deg);}
     }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-20px);}
-      to { opacity: 1; transform: translateY(0);}
+    #recentCities button {
+      margin: 5px 5px 0 0;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      background-color: #007bff;
+      color: white;
+      box-shadow: 3px 3px 6px #bebebe, -3px -3px 6px #ffffff;
+      transition: background-color 0.3s ease;
     }
-
-    img {
+    #recentCities button:hover {
+      background-color: #0056b3;
+    }
+    #shareButton {
       margin-top: 10px;
-      max-width: 100%;
-      height: auto;
     }
-
-    @media (max-width: 600px) {
-      .weather-container {
-        padding: 20px;
-      }
-
-      h1 {
-        font-size: 1.5rem;
-      }
-
-      input, button {
-        font-size: 0.9rem;
-      }
+    #logoutBtn {
+      margin-top: 10px;
+      background-color: #dc3545;
+    }
+    #logoutBtn:hover {
+      background-color: #b02a37;
     }
   </style>
 </head>
-
 <body>
-  <div class="background"></div>
 
-  <div class="weather-container">
+  <!-- Login Page -->
+  <div id="loginPage" class="container" style="display:none;">
+    <h1>Login</h1>
+    <input type="text" id="username" placeholder="Username" />
+    <input type="password" id="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+  </div>
+
+  <!-- Weather App -->
+  <div id="appPage" class="container" style="display:none;">
     <h1>Weather App</h1>
     <input type="text" id="cityInput" placeholder="Enter city name"/>
     <button onclick="getWeather()">Get Weather</button>
     <button id="voiceButton">🎤 Speak</button>
+    <button id="unitToggle">Switch to °F</button>
+    <button id="logoutBtn">Logout</button>
+    <div id="recentCities"></div>
+    <div id="spinner" class="spinner" style="display:none;"></div>
     <div id="weatherResult"></div>
-    <canvas id="tempChart"></canvas>
+    <button id="shareButton" style="display:none;">Share Weather</button>
+    <canvas id="hourlyChart"></canvas>
   </div>
 
   <script>
-    const apiKey = '57faf77a25e85ec45212e5f14d4e49f0';
+    const apiKey = '05d8e59ec2b54652bdc52052251905';
+    const loginPage = document.getElementById('loginPage');
+    const appPage = document.getElementById('appPage');
     const weatherResult = document.getElementById('weatherResult');
-    const tempChartCanvas = document.getElementById('tempChart').getContext('2d');
-    let tempChart;
-    const background = document.querySelector('.background');
+    const ctx = document.getElementById('hourlyChart').getContext('2d');
+    const spinner = document.getElementById('spinner');
+    const shareButton = document.getElementById('shareButton');
+    const unitToggle = document.getElementById('unitToggle');
+    const logoutBtn = document.getElementById('logoutBtn');
+    let chart;
+    let isCelsius = true;
+    let weatherData = null;
+
+    // Simple demo user credentials
+    const demoUser = {
+      username: 'intern',
+      password: 'stipend123'
+    };
+
+    // Show login or app depending on auth state
+    function checkAuth() {
+      const loggedIn = localStorage.getItem('loggedIn');
+      if (loggedIn === 'true') {
+        loginPage.style.display = 'none';
+        appPage.style.display = 'block';
+        loadInitialData();
+      } else {
+        loginPage.style.display = 'block';
+        appPage.style.display = 'none';
+      }
+    }
+
+    function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value.trim();
+
+      if(username === demoUser.username && password === demoUser.password){
+        localStorage.setItem('loggedIn', 'true');
+        checkAuth();
+      } else {
+        alert('Invalid username or password');
+      }
+    }
+
+    logoutBtn.addEventListener('click', () => {
+      localStorage.removeItem('loggedIn');
+      checkAuth();
+    });
 
     document.getElementById('voiceButton').addEventListener('click', startVoiceRecognition);
+    unitToggle.addEventListener('click', () => {
+      isCelsius = !isCelsius;
+      unitToggle.textContent = isCelsius ? 'Switch to °F' : 'Switch to °C';
+      if(weatherData) {
+        renderWeather(weatherData);
+        renderChart(weatherData.forecast.forecastday[0].hour);
+      }
+    });
+
+    shareButton.addEventListener('click', () => {
+      if (!weatherData) return;
+      const w = weatherData.current;
+      const city = weatherData.location.name;
+      const country = weatherData.location.country;
+      const temp = isCelsius ? w.temp_c : w.temp_f;
+      const unit = isCelsius ? '°C' : '°F';
+      const condition = w.condition.text;
+      const message = `Weather in ${city}, ${country}: ${temp}${unit}, ${condition}.`;
+      
+      if (navigator.share) {
+        navigator.share({ text: message }).catch(console.error);
+      } else {
+        alert('Sharing not supported on this browser.');
+      }
+    });
 
     function getWeather() {
       const city = document.getElementById('cityInput').value.trim();
-      if (!city) {
-        alert('Please enter a city name');
-        return;
-      }
-      const url = `https://api.openweathermap.org/data/2.5/weather?q=${city}&units=metric&appid=${apiKey}`;
-      fetchWeather(url);
-    }
+      if (!city) return alert('Please enter a city name');
+      localStorage.setItem('lastCity', city);
+      weatherResult.innerHTML = '';
+      spinner.style.display = 'block';
+      shareButton.style.display = 'none';
 
-    function fetchWeather(url) {
-      weatherResult.innerHTML = '<div class="spinner"></div>';
-      fetch(url)
-        .then(response => response.json())
+      fetch(`https://api.weatherapi.com/v1/forecast.json?key=${apiKey}&q=${city}&days=1&aqi=no&alerts=no`)
+        .then(res => res.json())
         .then(data => {
-          if (data.cod === 200) {
-            showWeather(data);
-            getForecast(data.coord.lat, data.coord.lon);
-            animateBackground(data.weather[0].main);
-          } else {
-            weatherResult.innerHTML = `<p>City not found. Try again.</p>`;
-          }
+          spinner.style.display = 'none';
+          if (data.error) throw new Error(data.error.message);
+          weatherData = data;
+          saveCity(city);
+          renderWeather(data);
+          renderChart(data.forecast.forecastday[0].hour);
         })
-        .catch(error => {
-          console.error('Error:', error);
-          weatherResult.innerHTML = `<p>Something went wrong. Try again later.</p>`;
+        .catch(err => {
+          spinner.style.display = 'none';
+          weatherResult.innerHTML = `<p>${err.message}</p>`;
+          shareButton.style.display = 'none';
         });
     }
 
-    function showWeather(data) {
-      const iconCode = data.weather[0].icon;
-      const iconUrl = `https://openweathermap.org/img/wn/${iconCode}@2x.png`;
-      const timezoneOffset = data.timezone;
-      const localTime = new Date(new Date().getTime() + timezoneOffset * 1000).toUTCString();
-
+    function renderWeather(data) {
+      const w = data.current;
+      applyTheme(data.location.localtime);
+      let temp = isCelsius ? w.temp_c : w.temp_f;
+      let feelsLike = isCelsius ? w.feelslike_c : w.feelslike_f;
+      let unit = isCelsius ? '°C' : '°F';
       weatherResult.innerHTML = `
-        <h2>${data.name}</h2>
-        <img src="${iconUrl}" alt="Weather Icon">
-        <p><strong>${data.weather[0].description}</strong></p>
-        <p>Temperature: ${data.main.temp}°C</p>
-        <p>Feels Like: ${data.main.feels_like}°C</p>
-        <p>Humidity: ${data.main.humidity}%</p>
-        <p>Wind Speed: ${data.wind.speed} m/s</p>
-        <p>Local Time: ${localTime}</p>
+        <h2>${data.location.name}, ${data.location.country}</h2>
+        <img src="${w.condition.icon}" alt="icon">
+        <p><strong>${w.condition.text}</strong></p>
+        <p>Temp: ${temp}${unit} | Feels Like: ${feelsLike}${unit}</p>
+        <p>Humidity: ${w.humidity}% | Wind: ${w.wind_kph} km/h</p>
+        <p>Local Time: ${data.location.localtime}</p>
       `;
+      shareButton.style.display = 'inline-block';
     }
 
-    function getForecast(lat, lon) {
-      const url = `https://api.openweathermap.org/data/2.5/forecast?lat=${lat}&lon=${lon}&units=metric&appid=${apiKey}`;
-
-      fetch(url)
-        .then(response => response.json())
-        .then(data => {
-          const temps = data.list.slice(0, 8).map(item => item.main.temp);
-          const times = data.list.slice(0, 8).map(item => item.dt_txt.split(' ')[1]);
-
-          if (tempChart) tempChart.destroy();
-
-          tempChart = new Chart(tempChartCanvas, {
-            type: 'line',
-            data: {
-              labels: times,
-              datasets: [{
-                label: 'Temperature °C',
-                data: temps,
-                backgroundColor: 'rgba(0,123,255,0.2)',
-                borderColor: '#007BFF',
-                borderWidth: 2,
-                fill: true,
-                tension: 0.4
-              }]
-            },
-            options: {
-              responsive: true,
-              scales: {
-                y: { beginAtZero: false }
-              }
-            }
-          });
-        })
-        .catch(error => console.error('Forecast error:', error));
-    }
-
-    function animateBackground(condition) {
-      background.innerHTML = '';
-
-      if (condition.toLowerCase().includes('cloud')) {
-        for (let i = 0; i < 3; i++) {
-          const cloud = document.createElement('div');
-          cloud.className = 'cloud';
-          cloud.style.top = `${Math.random() * 80 + 10}px`;
-          background.appendChild(cloud);
+    function renderChart(hourData) {
+      const labels = hourData.map(h => h.time.split(' ')[1]);
+      const temps = hourData.map(h => isCelsius ? h.temp_c : h.temp_f);
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: `Hourly Temp (${isCelsius ? '°C' : '°F'})`,
+            data: temps,
+            borderColor: '#007BFF',
+            fill: true,
+            backgroundColor: 'rgba(0,123,255,0.1)',
+            tension: 0.3,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: { beginAtZero: false }
+          }
         }
-      } else if (condition.toLowerCase().includes('rain')) {
-        background.style.background = "linear-gradient(to right, #667db6, #0082c8)";
-      } else if (condition.toLowerCase().includes('snow')) {
-        background.style.background = "linear-gradient(to right, #e6dada, #274046)";
-      } else {
-        background.style.background = "linear-gradient(to right, #83a4d4, #b6fbff)";
+      });
+    }
+
+    // Save recent cities in localStorage
+    function saveCity(city) {
+      let cities = JSON.parse(localStorage.getItem('recentCities') || '[]');
+      cities = cities.filter(c => c.toLowerCase() !== city.toLowerCase());
+      cities.unshift(city);
+      if (cities.length > 5) cities.pop();
+      localStorage.setItem('recentCities', JSON.stringify(cities));
+      renderRecentCities();
+    }
+
+    function renderRecentCities() {
+      const container = document.getElementById('recentCities');
+      let cities = JSON.parse(localStorage.getItem('recentCities') || '[]');
+      container.innerHTML = '';
+      if (cities.length) {
+        container.innerHTML = '<h3>Recent Cities:</h3>';
+        cities.forEach(city => {
+          const btn = document.createElement('button');
+          btn.textContent = city;
+          btn.onclick = () => {
+            document.getElementById('cityInput').value = city;
+            getWeather();
+          };
+          container.appendChild(btn);
+        });
       }
     }
 
+    function loadInitialData() {
+      renderRecentCities();
+      const lastCity = localStorage.getItem('lastCity');
+      if (lastCity) {
+        document.getElementById('cityInput').value = lastCity;
+        getWeather();
+      }
+    }
+
+    // Voice Recognition
     function startVoiceRecognition() {
       if (!('webkitSpeechRecognition' in window)) {
-        alert('Voice recognition not supported');
+        alert('Your browser does not support speech recognition.');
         return;
       }
       const recognition = new webkitSpeechRecognition();
       recognition.lang = 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
       recognition.start();
 
       recognition.onresult = function(event) {
@@ -277,7 +327,29 @@
         document.getElementById('cityInput').value = city;
         getWeather();
       };
+
+      recognition.onerror = function(event) {
+        alert('Error occurred in recognition: ' + event.error);
+      };
     }
+
+    // Day/night theme based on local time
+    function applyTheme(localtime) {
+      // localtime format: "YYYY-MM-DD HH:MM"
+      const hour = parseInt(localtime.split(' ')[1].split(':')[0]);
+      if (hour >= 6 && hour < 18) {
+        // day
+        document.body.style.background = 'linear-gradient(to right, #83a4d4, #b6fbff)';
+        document.body.style.color = '#000';
+      } else {
+        // night
+        document.body.style.background = 'linear-gradient(to right, #0f2027, #203a43, #2c5364)';
+        document.body.style.color = '#fff';
+      }
+    }
+
+    // On page load
+    checkAuth();
   </script>
 </body>
 </html>
